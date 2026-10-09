@@ -15,8 +15,8 @@ Update this file after each verified implementation milestone. Documentation upd
 ## Milestones
 - [x] Inspect repository README, code, manifests, lockfiles, and requirements. (Repository was empty; baseline established from scratch.)
 - [x] Confirm exact product purpose, user roles, and MVP workflows. (Domain confirmed as infrastructure monitoring. **Roles still open** — see Open Questions.)
-- [ ] Inspect current Git branch, remotes, and uncommitted changes. (No commits existed; repo initialized locally.)
-- [ ] Create/switch to `dev` safely and confirm remote tracking.
+- [x] Inspect current Git branch, remotes, and uncommitted changes. (Repository had no commits; initialized locally.)
+- [x] Create/switch to `dev` safely and confirm remote tracking. (`main` committed first, then `dev` branched from it; both pushed and tracking confirmed.)
 - [x] Run baseline lint/typecheck/build/tests available in repository.
 - [x] Verify Clerk auth and server-side authorization.
 - [ ] Verify Supabase schema/RLS/migrations if Supabase is configured. (Not configured yet.)
@@ -56,8 +56,8 @@ These were confirmed by reading the installed packages, not assumed:
 - Tests/checks run: `npm run lint` (clean), `npm run typecheck` (clean), `npm test` (9/9 pass), `npm run build` (succeeds).
 - Results: Build produces `/` (static), `/dashboard` (dynamic), and partial-prerendered sign-in/sign-up. `/dashboard` correctly marked `ƒ (Dynamic)`.
 - Security/authorization checks: Unauthenticated browser request to `/dashboard` and `/dashboard/deep/nested` was confirmed to land on `/sign-in?redirect_url=...`, so the protected route does not leak content. Authorization is enforced **in the page as well as the proxy**, because a matcher is not a security boundary. Secrets are only read from server env; `.env.local` is git-ignored and `.env.example` contains variable names only.
-- Commit hash: Pending — no commit was created yet; git identity is not configured on this machine.
-- Push result: Not attempted. Requires git identity and confirmation.
+- Commit hash: `fc3e84cb697ffa7b51c60576e2359ad5c8a6d328` on `main`, and `dev` created from it at the same commit.
+- Push result: **Confirmed.** `git ls-remote --heads origin` shows both `refs/heads/main` and `refs/heads/dev` at `fc3e84c`. Both branches track their remote.
 - Known limitations:
   - Clerk was provisioned with temporary **accountless development keys** (`.env.local`). Run `clerk auth login` to claim a real application before any deployment.
   - `npm audit` reports 5 high-severity advisories, all dev-only (transitive from `eslint-config-next` → `fast-glob` → `micromatch` → `braces`). They do not ship in the production bundle. The suggested fix is a **downgrade** of `eslint-config-next` to 14.x, so `npm audit fix --force` was deliberately **not** run.
