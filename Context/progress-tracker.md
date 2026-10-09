@@ -65,8 +65,8 @@ These were confirmed by reading the installed packages, not assumed:
 - Tests/checks run: `npm test` (23/23 pass), `npm run lint` (clean), `npm run typecheck` (clean), `npm run build` (succeeds).
 - Results: Verified against a **real local HTTP server**, not mocks — covering 200, 404, 500, redirect following, connection refused, timeout, and invalid URL.
 - Security/authorization checks: Network failures are mapped to a fixed set of categories (`dns`, `tls`, `timeout`, `connection_refused`, `unreachable`, `http_error`, `invalid_url`) rather than raw error messages, because a raw message can leak internal hostnames and ports into the database and UI. A test asserts the category is always a known value. Only `http`/`https` are probeable. Credentials are never sent to monitored hosts.
-- Commit hash: Recorded below after commit.
-- Push result: Recorded below after push.
+- Commit hash: `4de2e0666feedba827c5d77ec9db545b72e67ec2` (feature commit; the follow-up that records this hash is a separate docs commit).
+- Push result: **Confirmed.** `git ls-remote --heads origin dev` reports `4de2e06`.
 - Known limitations:
   - **Not end-to-end.** No persistence, no scheduler, no UI. Per the build plan, this must not be called a completed feature.
   - A bug was caught by these tests: Node's fetch reports an abort as `name: "AbortError"` with numeric `code: 20`, not the string `"ABORT_ERR"`, so the first classifier returned `unknown` for timeouts. Fixed, and the code now treats `controller.signal.aborted` as the authoritative timeout signal so it does not depend on error shape across Node versions.
