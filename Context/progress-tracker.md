@@ -44,10 +44,35 @@ These were confirmed by reading the installed packages, not assumed:
 - With partial prerendering, an unauthenticated request to `/dashboard` returns HTTP 200 with a streamed shell and performs the redirect **client-side**. Curl alone cannot verify this; a real browser is required.
 
 ## Open Questions
-- **User roles are still undefined.** No data model exists yet, so this did not block the auth shell, but it must be answered before the Supabase schema and RLS policies are designed. Assume "internal staff + admin tiers" until told otherwise.
-- No product module (targets, metrics, alerting) has been specified beyond the domain name.
+- **Supabase is not set up.** No project exists and no credentials are configured, so schema migrations and RLS policies cannot be written or verified yet. This blocks multi-tenant isolation and persistence.
+- **Clerk Organizations are unavailable on the temporary keys.** `GET /v1/organizations` returns 403 on the accountless dev instance, so per-org isolation cannot be built or tested until the app is claimed and Organizations are enabled.
+- **User roles are still undefined.** Multi-tenant per-org isolation was chosen as the model, but the specific roles inside an org (owner/admin/member) have not been fixed. These must be settled before RLS policies are written.
+- No product module beyond the uptime check engine has been specified.
+
+## Decisions
+- **Product domain:** infrastructure monitoring.
+- **Tenancy:** multi-tenant with per-org isolation. Clerk Organizations is the intended tenant boundary.
+- **First feature:** uptime checks.
+- **Supabase is deferred, not abandoned.** Postgres suits users, targets, alert rules, and incidents. Raw metric samples are time-series data and are a poor fit for plain Postgres rows; **TimescaleDB is a Postgres extension and can live in the same Supabase project**, so the stack and vendor do not need to change. Confirm before writing metric-sample migrations.
+- **Uptime checks are inherently an SSRF vector**: they make the server fetch a user-supplied URL, which in an infrastructure-monitoring product normally points at internal addresses. The mitigation is that only authenticated, org-scoped users may create targets and the service-role key stays server-side. Revisit if targets become user-editable without org scoping.
 
 ## Change Log
+### Uptime check engine
+- Date: 2026-10-09
+- Branch: `dev`
+- Feature/change: Added the uptime check engine — a single reachability probe that returns a persistable, display-safe result. This is the core of the agreed first feature. No persistence, scheduling, or UI yet.
+- Files changed: `src/lib/uptime/check-target.ts`, `tests/uptime/check-target.test.ts`, `Context/progress-tracker.md`.
+- Tests/checks run: `npm test` (23/23 pass), `npm run lint` (clean), `npm run typecheck` (clean), `npm run build` (succeeds).
+- Results: Verified against a **real local HTTP server**, not mocks — covering 200, 404, 500, redirect following, connection refused, timeout, and invalid URL.
+- Security/authorization checks: Network failures are mapped to a fixed set of categories (`dns`, `tls`, `timeout`, `connection_refused`, `unreachable`, `http_error`, `invalid_url`) rather than raw error messages, because a raw message can leak internal hostnames and ports into the database and UI. A test asserts the category is always a known value. Only `http`/`https` are probeable. Credentials are never sent to monitored hosts.
+- Commit hash: Recorded below after commit.
+- Push result: Recorded below after push.
+- Known limitations:
+  - **Not end-to-end.** No persistence, no scheduler, no UI. Per the build plan, this must not be called a completed feature.
+  - A bug was caught by these tests: Node's fetch reports an abort as `name: "AbortError"` with numeric `code: 20`, not the string `"ABORT_ERR"`, so the first classifier returned `unknown` for timeouts. Fixed, and the code now treats `controller.signal.aborted` as the authoritative timeout signal so it does not depend on error shape across Node versions.
+  - Redirects are followed and the final status recorded; there is no redirect-loop or max-hop guard beyond the request timeout.
+- Next step: Claim the Clerk app and enable Organizations, and create the Supabase project. Then define roles within an org and write the schema with RLS policies.
+
 ### Auth shell and application foundation
 - Date: 2026-10-09
 - Branch: `dev` (from `main`)
