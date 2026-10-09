@@ -44,19 +44,36 @@ These were confirmed by reading the installed packages, not assumed:
 - With partial prerendering, an unauthenticated request to `/dashboard` returns HTTP 200 with a streamed shell and performs the redirect **client-side**. Curl alone cannot verify this; a real browser is required.
 
 ## Open Questions
-- **Supabase is not set up.** No project exists and no credentials are configured, so schema migrations and RLS policies cannot be written or verified yet. This blocks multi-tenant isolation and persistence.
-- **Clerk Organizations are unavailable on the temporary keys.** `GET /v1/organizations` returns 403 on the accountless dev instance, so per-org isolation cannot be built or tested until the app is claimed and Organizations are enabled.
-- **User roles are still undefined.** Multi-tenant per-org isolation was chosen as the model, but the specific roles inside an org (owner/admin/member) have not been fixed. These must be settled before RLS policies are written.
-- No product module beyond the uptime check engine has been specified.
+- **Clerk Organizations are still not enabled.** `clerk auth login` succeeded and the instance is now claimed to a workspace (`workspace_id` is present), but `GET /v1/organizations` still returns **403**. Enabling Organizations is a separate switch in the Clerk dashboard. Per-org isolation is blocked until it is on.
+- **Supabase REST is not serving yet.** The project URL and publishable key are valid (`/auth/v1/health` returns 200, GoTrue v2.197.0), but `/rest/v1/` returns **401** with every header combination tried. A newly created project needs time before PostgREST becomes healthy. Retry before assuming it is broken.
+- **`SUPABASE_SERVICE_ROLE_KEY` is still missing.** Needed for privileged writes and for applying migrations.
+- **Roles within an organization are undefined.** Tenant isolation is decided; the in-org roles (owner/admin/member) are not. The current policies let any org member edit any target, which is almost certainly too permissive. This must be tightened before go-live.
+- **The Clerk/Supabase JWT verification question is unresolved.** See Decisions.
 
 ## Decisions
 - **Product domain:** infrastructure monitoring.
 - **Tenancy:** multi-tenant with per-org isolation. Clerk Organizations is the intended tenant boundary.
 - **First feature:** uptime checks.
 - **Supabase is deferred, not abandoned.** Postgres suits users, targets, alert rules, and incidents. Raw metric samples are time-series data and are a poor fit for plain Postgres rows; **TimescaleDB is a Postgres extension and can live in the same Supabase project**, so the stack and vendor do not need to change. Confirm before writing metric-sample migrations.
+- **RLS alone cannot carry Clerk authz against PostgREST.** A Clerk token is signed by Clerk, not Supabase, so PostgREST will reject it unless the Supabase JWT secret/JWKS is pointed at Clerk. The safer default is to keep all database access on the server via the service-role key and enforce org scoping in application code, with RLS retained as defence in depth. This is unresolved and needs a decision before client-side data access is built.
 - **Uptime checks are inherently an SSRF vector**: they make the server fetch a user-supplied URL, which in an infrastructure-monitoring product normally points at internal addresses. The mitigation is that only authenticated, org-scoped users may create targets and the service-role key stays server-side. Revisit if targets become user-editable without org scoping.
 
 ## Change Log
+### Supabase schema and RLS policies (written, NOT applied)
+- Date: 2026-10-09
+- Branch: `dev`
+- Feature/change: Wrote the initial migration for `targets` and `uptime_checks`, with per-org Row Level Security and a `has_org_access` helper that understands Clerk's `org_id` and `org_ids` claims. Added the real Supabase variable names to `.env.example`.
+- Files changed: `supabase/migrations/20261009120000_initial_schema.sql`, `.env.example`, `Context/progress-tracker.md`.
+- Tests/checks run: **No database tests were run, because the database is not reachable yet.** The SQL has never been executed. Lint, typecheck, and build are unaffected (no application code changed) and remain green from the previous commit.
+- Results: None. This is unexecuted SQL and must be treated as a draft.
+- Security/authorization checks: RLS enabled on both tables with org-scoped policies. `anon` is revoked on both. Deliberately **no INSERT/UPDATE/DELETE policy on `uptime_checks`**, so probe results can only be written by the service-role path and a compromised client token cannot fabricate healthy history. A check constraint enforces that `status = 'up'` cannot carry an error category.
+- Commit hash: recorded in git history; see `git log`.
+- Push result: see `git log`.
+- Known limitations:
+  - **Completely unverified.** Never executed against Postgres. Syntax, constraint behaviour, and policy semantics are all unproven.
+  - The in-org role model is not implemented, so any org member can currently edit any target.
+  - The Clerk claim shape assumed by `has_org_access` cannot be confirmed until Organizations are enabled and a real token can be issued.
+- Next step: Wait for PostgREST to become healthy, add the service-role key to `.env.local`, then apply this migration and test the policies with a real token.
 ### Uptime check engine
 - Date: 2026-10-09
 - Branch: `dev`
